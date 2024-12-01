@@ -1,0 +1,94 @@
+Resources:
+  EmployeeDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref "AWS::AccountId"  # Uses the current AWS account ID
+      DatabaseInput:
+        Name: employee_database
+        Description: "A sample Glue database for employee data"
+
+  EmployeeTableA:
+    Type: AWS::Glue::Table
+    Properties:
+      DatabaseName: employee_database 
+      TableInput:
+        Name: employee_table_a
+        Description: "Table containing employee details"
+        StorageDescriptor:
+          Columns:
+            - Name: employee_id
+              Type: int
+            - Name: employee_name
+              Type: string
+            - Name: employee_age
+              Type: int
+            - Name: employee_salary
+              Type: double
+          Location: "s3://bucket_table_emp/employee_table_a"
+          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          Compressed: false
+          SerdeInfo:
+            SerializationLibrary: "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
+            Parameters:
+              "field.delim": ","
+        TableType: EXTERNAL_TABLE
+    
+    EmployeeTableB:
+    Type: AWS::Glue::Table
+    Properties:
+      DatabaseName: employee_database 
+      TableInput:
+        Name: employee_table_b
+        Description: "Table containing employee details"
+        StorageDescriptor:
+          Columns:
+            - Name: employee_id
+              Type: int
+            - Name: employee_name
+              Type: string
+            - Name: employee_age
+              Type: int
+            - Name: employee_salary
+              Type: double
+          Location: "s3://bucket_table_emp/employee_table_b"
+          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          Compressed: false
+          SerdeInfo:
+            SerializationLibrary: "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
+            Parameters:
+              "field.delim": ","
+        TableType: EXTERNAL_TABLE
+
+  MoveEmployeeDataJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: move_employee_data
+      Role: !GetAtt GlueServiceRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: "s3://bucket_py_scripts/etl-job.py"
+        PythonVersion: "3"
+      DefaultArguments:
+        "--TempDir": "s3://bucket_py_scripts/"
+        "--job-language": "python"
+      MaxCapacity: 2 
+      GlueVersion: "3.0"
+      Timeout: 2880 
+
+   EmployeeDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: employee_data_crawler
+      Role: !GetAtt GlueServiceRole.Arn  
+      DatabaseName: employee_database     
+      Description: "Crawler to load employee data from CSV to Glue table"
+      Targets:
+        S3Targets:
+          - Path: "s3://bucket_emp_data/employee_data.xlsx"  
+      TablePrefix: "employee_table_a"  
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DEPRECATE_IN_DATABASE"
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Partitions\":{\"AddOrUpdateBehavior\":\"InheritFromTable\"}}}"
